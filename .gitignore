@@ -1,0 +1,29 @@
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Python build/test
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage*
+dist/
+build/
+
+# Environments
+.venv/
+venv/
+ENV/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Local DB
+oura_streaming.db
+
+# FastAPI/uvicorn logs
+*.log
+

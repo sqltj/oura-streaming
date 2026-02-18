@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oura Streaming Dashboard</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .event-new { animation: highlight 2s ease-out; }
+        @keyframes highlight {
+            0% { background-color: #fef3c7; }
+            100% { background-color: transparent; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-blue-600 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <h1 class="text-2xl font-bold">Oura Streaming Receiver</h1>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Status</h2>
+                <div class="mt-2 flex items-center">
+                    <div id="connection-status" class="h-3 w-3 rounded-full bg-red-500 mr-2"></div>
+                    <span id="status-text" class="text-lg font-semibold text-gray-900">Disconnected</span>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Events</h2>
+                <p id="total-count" class="mt-2 text-3xl font-bold text-blue-600">{{ total_events }}</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Active Subscriptions</h2>
+                <p class="mt-2 text-3xl font-bold text-green-600">-</p>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-900">Recent Events</h2>
+                <button onclick="clearEvents()" class="text-sm text-red-600 hover:text-red-800 font-medium">Clear All</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Summary</th>
+                        </tr>
+                    </thead>
+                    <tbody id="events-table" class="bg-white divide-y divide-gray-200">
+                        {% for event in events %}
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ event.received_at.strftime('%H:%M:%S') }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                    {{ event.event.data_type }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ event.event.event_type }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500 font-mono text-xs truncate max-w-xs">
+                                {{ event.event.data | truncate(50) }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/events`;
+        let socket = new WebSocket(wsUrl);
+
+        const statusDot = document.getElementById('connection-status');
+        const statusText = document.getElementById('status-text');
+        const tableBody = document.getElementById('events-table');
+        const totalCount = document.getElementById('total-count');
+
+        socket.onopen = () => {
+            statusDot.classList.replace('bg-red-500', 'bg-green-500');
+            statusText.textContent = 'Connected';
+        };
+
+        socket.onclose = () => {
+            statusDot.classList.replace('bg-green-500', 'bg-red-500');
+            statusText.textContent = 'Disconnected (Retrying...)';
+            setTimeout(() => {
+                window.location.reload();
+            }, 5000);
+        };
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            addEventToTable(data);
+            totalCount.textContent = parseInt(totalCount.textContent) + 1;
+        };
+
+        function addEventToTable(event) {
+            const row = document.createElement('tr');
+            row.className = 'event-new';
+            
+            const time = new Date(event.received_at).toLocaleTimeString();
+            const summary = JSON.stringify(event.event.data).substring(0, 50) + '...';
+            
+            row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${time}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                        ${event.event.data_type}
+                    </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${event.event.event_type}</td>
+                <td class="px-6 py-4 text-sm text-gray-500 font-mono text-xs truncate max-w-xs">${summary}</td>
+            `;
+            
+            tableBody.insertBefore(row, tableBody.firstChild);
+            if (tableBody.children.length > 50) {
+                tableBody.removeChild(tableBody.lastChild);
+            }
+        }
+
+        async function clearEvents() {
+            if (confirm('Clear all stored events?')) {
+                await fetch('/events', { method: 'DELETE' });
+                tableBody.innerHTML = '';
+                totalCount.textContent = '0';
+            }
+        }
+    </script>
+</body>
+</html>

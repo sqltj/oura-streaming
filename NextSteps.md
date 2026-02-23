@@ -8,7 +8,7 @@
 - [x] **Persistent Storage**: SQLite backend for events and tokens
 - [x] **Security**: HMAC-SHA256 Webhook signature verification
 - [x] **Real-time Dashboard**: WebSocket-powered UI at `/dashboard`
-- [x] **Maintenance**: Background pruning of old events
+- [x] **Polling Support**: Background worker to pull all 14 Oura data types for environments without public ingress (e.g., Databricks Apps)
 
 ## 🚀 Quick Start (New Features)
 

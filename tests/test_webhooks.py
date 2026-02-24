@@ -1,12 +1,11 @@
 """Tests for webhook endpoints."""
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 
 from oura_streaming.core.database import init_db
 from oura_streaming.main import app
 from oura_streaming.models.webhook import WebhookEvent
-from oura_streaming.services.event_store import EventStore, get_event_store
+from oura_streaming.services.event_store import EventStore
 
 
 @pytest.fixture(autouse=True)
@@ -17,6 +16,7 @@ async def setup_db():
 
 @pytest.fixture
 async def client():
+    from httpx import ASGITransport, AsyncClient
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
@@ -24,7 +24,7 @@ async def client():
 @pytest.mark.asyncio
 class TestHealth:
     async def test_health_check(self, client):
-        response = await client.get("/health")
+        response = await client.get("/api/health")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
@@ -37,7 +37,7 @@ class TestWebhookVerification:
     async def test_verify_webhook_echoes_challenge(self, client):
         token = "test-token"
         challenge = "test-challenge"
-        response = await client.get(f"/webhooks?verification_token={token}&challenge={challenge}")
+        response = await client.get(f"/api/webhooks?verification_token={token}&challenge={challenge}")
         assert response.status_code == 200
         assert response.json() == {"challenge": challenge}
 
@@ -50,8 +50,7 @@ class TestWebhookReceive:
             "event_type": "create",
             "data": {"score": 85},
         }
-        # Signature verification is skipped if OURA_WEBHOOK_SECRET is empty
-        response = await client.post("/webhooks", json=event)
+        response = await client.post("/api/webhooks", json=event)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "received"
@@ -67,7 +66,7 @@ class TestWebhookReceive:
             "ring_configuration", "daily_stress", "daily_cycle_phases",
         ]
         for dt in data_types:
-            response = await client.post("/webhooks", json={
+            response = await client.post("/api/webhooks", json={
                 "data_type": dt,
                 "event_type": "create",
             })
@@ -91,7 +90,7 @@ class TestEventStore:
         store = EventStore()
         await store.add(WebhookEvent(data_type="sleep", event_type="create"))
         await store.add(WebhookEvent(data_type="workout", event_type="create"))
-        
+
         sleep_events = await store.get_by_data_type("sleep")
         assert len(sleep_events) >= 1
         assert all(e.event.data_type == "sleep" for e in sleep_events)
@@ -100,29 +99,27 @@ class TestEventStore:
 @pytest.mark.asyncio
 class TestEventsEndpoint:
     async def test_get_events(self, client):
-        # Add some events first
-        await client.post("/webhooks", json={"data_type": "sleep", "event_type": "create"})
-        await client.post("/webhooks", json={"data_type": "workout", "event_type": "create"})
+        await client.post("/api/webhooks", json={"data_type": "sleep", "event_type": "create"})
+        await client.post("/api/webhooks", json={"data_type": "workout", "event_type": "create"})
 
-        response = await client.get("/events")
+        response = await client.get("/api/events")
         assert response.status_code == 200
         data = response.json()
         assert "count" in data
         assert "events" in data
 
     async def test_filter_events_by_data_type(self, client):
-        # Add mixed events
-        await client.post("/webhooks", json={"data_type": "sleep", "event_type": "create"})
-        await client.post("/webhooks", json={"data_type": "workout", "event_type": "create"})
+        await client.post("/api/webhooks", json={"data_type": "sleep", "event_type": "create"})
+        await client.post("/api/webhooks", json={"data_type": "workout", "event_type": "create"})
 
-        response = await client.get("/events?data_type=sleep")
+        response = await client.get("/api/events?data_type=sleep")
         assert response.status_code == 200
         data = response.json()
         for event in data["events"]:
-            assert event["event"]["data_type"] == "sleep"
+            assert event["data_type"] == "sleep"
 
     async def test_clear_events(self, client):
-        await client.post("/webhooks", json={"data_type": "sleep", "event_type": "create"})
-        response = await client.delete("/events")
+        await client.post("/api/webhooks", json={"data_type": "sleep", "event_type": "create"})
+        response = await client.delete("/api/events")
         assert response.status_code == 200
         assert response.json()["status"] == "cleared"

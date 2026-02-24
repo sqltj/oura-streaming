@@ -1,0 +1,4 @@
+{
+  "routesDirectory": "./src/oura_streaming/ui/routes",
+  "generatedRouteTree": "./src/oura_streaming/ui/routeTree.gen.ts"
+}

@@ -27,3 +27,17 @@ oura_streaming.db
 # FastAPI/uvicorn logs
 *.log
 
+# Node/Frontend
+node_modules/
+static/
+bun.lock
+.tsr/
+ui/routeTree.gen.ts
+src/oura_streaming/ui/routeTree.gen.ts
+
+# Worktrees
+.worktrees/
+
+# APX runtime / generated
+.apx/
+src/oura_streaming/_version.py

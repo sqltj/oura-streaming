@@ -2,15 +2,21 @@
 
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from pathlib import Path
 
-from .api.routes import api_router
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+
+from .api.routes import api_router, ws_router
 from .config import get_settings
 from .core.database import init_db
 from .services.event_store import get_event_store
 from .services.poller import run_poller
 
 settings = get_settings()
+
+# React build output directory
+STATIC_DIR = Path(__file__).parent.parent.parent / "static"
 
 
 async def prune_task():
@@ -29,9 +35,7 @@ async def prune_task():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle events for the FastAPI application."""
-    # Initialize database
     await init_db()
-    # Start background tasks
     task = asyncio.create_task(prune_task())
     stop = asyncio.Event()
     poller_task = asyncio.create_task(run_poller(stop))
@@ -49,34 +53,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# API routes at /api/*
 app.include_router(api_router)
 
+# WebSocket at /ws/*
+app.include_router(ws_router)
 
-@app.get("/")
-async def root() -> dict:
-    """Root endpoint with API information."""
-    return {
-        "name": "Oura Webhook Receiver",
-        "version": "0.1.0",
-        "docs": "/docs",
-        "health": "/health",
-        "dashboard": "/dashboard",
-        "endpoints": {
-            "auth": {
-                "login": "GET /auth/login",
-                "callback": "GET /auth/callback",
-                "status": "GET /auth/status",
-                "logout": "POST /auth/logout",
-            },
-            "webhooks": {
-                "verify": "GET /webhooks?verification_token=...",
-                "receive": "POST /webhooks",
-                "events": "GET /events",
-                "clear": "DELETE /events",
-            },
-            "realtime": {
-                "dashboard": "GET /dashboard",
-                "websocket": "WS /ws/events",
-            },
-        },
-    }
+# Serve React build if it exists (production)
+if STATIC_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

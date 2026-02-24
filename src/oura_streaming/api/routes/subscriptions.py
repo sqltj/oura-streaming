@@ -1,10 +1,10 @@
 """Webhook subscription management endpoints."""
 
 from fastapi import APIRouter, HTTPException, Path
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from ...config import get_settings
+from ...models.responses import SubscriptionDeleteOut, SubscriptionOut
 from ...services.oura_client import get_oura_client
 
 router = APIRouter()
@@ -31,8 +31,12 @@ def _headers(access_token: str) -> dict:
     }
 
 
-@router.get("/subscriptions")
-async def list_subscriptions() -> JSONResponse:
+@router.get(
+    "/subscriptions",
+    response_model=list[SubscriptionOut],
+    operation_id="listSubscriptions",
+)
+async def list_subscriptions() -> list[SubscriptionOut]:
     """List all active webhook subscriptions."""
     client = get_oura_client()
     if not client.is_authenticated:
@@ -45,11 +49,16 @@ async def list_subscriptions() -> JSONResponse:
         )
         if not response.is_success:
             raise HTTPException(status_code=response.status_code, detail=response.text)
-        return JSONResponse(content=response.json())
+        data = response.json()
+        return [SubscriptionOut(**sub) for sub in data]
 
 
-@router.post("/subscriptions")
-async def create_subscription(sub: CreateSubscription) -> JSONResponse:
+@router.post(
+    "/subscriptions",
+    response_model=SubscriptionOut,
+    operation_id="createSubscription",
+)
+async def create_subscription(sub: CreateSubscription) -> SubscriptionOut:
     """Create a new webhook subscription with Oura."""
     client = get_oura_client()
     if not client.is_authenticated:
@@ -61,19 +70,17 @@ async def create_subscription(sub: CreateSubscription) -> JSONResponse:
             headers=_headers(client.token.access_token),
             json=sub.model_dump(),
         )
-        # Return full response details for debugging
-        try:
-            body = response.json()
-        except Exception:
-            body = response.text
-        return JSONResponse(content={
-            "oura_status_code": response.status_code,
-            "oura_response": body,
-        })
+        if not response.is_success:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+        return SubscriptionOut(**response.json())
 
 
-@router.delete("/subscriptions/{subscription_id}")
-async def delete_subscription(subscription_id: str = Path(...)) -> JSONResponse:
+@router.delete(
+    "/subscriptions/{subscription_id}",
+    response_model=SubscriptionDeleteOut,
+    operation_id="deleteSubscription",
+)
+async def delete_subscription(subscription_id: str = Path(...)) -> SubscriptionDeleteOut:
     """Delete a webhook subscription."""
     client = get_oura_client()
     if not client.is_authenticated:
@@ -86,4 +93,4 @@ async def delete_subscription(subscription_id: str = Path(...)) -> JSONResponse:
         )
         if not response.is_success:
             raise HTTPException(status_code=response.status_code, detail=response.text)
-        return JSONResponse(content={"status": "deleted", "id": subscription_id})
+        return SubscriptionDeleteOut(status="deleted", id=subscription_id)

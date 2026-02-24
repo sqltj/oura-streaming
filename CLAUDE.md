@@ -9,11 +9,8 @@ When the user corrects you on anything, update this file with the correction to 
 ## Commands
 
 ```bash
-# Install dependencies
+# Install dependencies (includes dev dependencies)
 uv sync
-
-# Install with dev dependencies (pytest)
-uv sync --extra dev
 
 # Run development server (APX - both backend + Vite frontend, preferred)
 apx dev start        # detached, proxy at http://localhost:9001
@@ -79,7 +76,6 @@ FastAPI application receiving Oura Ring API v2 webhooks with OAuth2 authenticati
 - **Batch code changes before re-auth**: Every file edit triggers FastAPI dev server reload, which clears in-memory OAuth tokens. Make all code changes at once, then re-authenticate once.
 - **ngrok free tier**: URL changes on restart. Update both the Oura portal redirect URI and `.env` when ngrok restarts.
 - **Debug Oura API responses**: When Oura returns errors, log the full response (status code + body) rather than raising immediately. Oura error messages are helpful but brief.
-- **APX strips dev extras**: `apx dev start` runs `uv sync` during preflight (without `--extra dev`), removing pytest/httpx. Run `uv sync --extra dev` after `apx dev start` to restore test deps.
 - **APX must be installed as a uv tool**: `uv tool install /path/to/apx.whl` installs APX globally (`~/.local/bin/apx`). Do NOT use `uv pip install` — it goes into the project venv and gets removed on next `uv sync`.
 - **APX required files**: `metadata-path = "src/oura_streaming/_metadata.py"` must be in `[tool.apx.metadata]` in pyproject.toml, and `src/oura_streaming/_metadata.py` must exist with `app_name`, `app_slug`, `app_entrypoint`, `api_prefix`, `dist_dir` variables.
 

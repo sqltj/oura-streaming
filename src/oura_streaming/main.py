@@ -12,6 +12,7 @@ from .config import get_settings
 from .core.database import init_db
 from .services.event_store import get_event_store
 from .services.poller import run_poller
+from .services.zerobus_sink import ZerobusEventSink
 
 settings = get_settings()
 
@@ -36,6 +37,9 @@ async def prune_task():
 async def lifespan(app: FastAPI):
     """Lifecycle events for the FastAPI application."""
     await init_db()
+    zerobus = ZerobusEventSink(settings)
+    await zerobus.start()
+    app.state.zerobus = zerobus
     task = asyncio.create_task(prune_task())
     stop = asyncio.Event()
     poller_task = asyncio.create_task(run_poller(stop))
@@ -43,6 +47,7 @@ async def lifespan(app: FastAPI):
     stop.set()
     task.cancel()
     poller_task.cancel()
+    await zerobus.stop()
 
 
 app = FastAPI(

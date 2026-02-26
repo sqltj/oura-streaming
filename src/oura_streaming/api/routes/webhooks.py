@@ -1,6 +1,6 @@
 """Webhook endpoints for receiving Oura events."""
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, Request
 
 from ...core.security import verify_webhook_signature
 from ...models.responses import (
@@ -33,12 +33,13 @@ async def verify_webhook(
 @router.post("/webhooks", response_model=WebhookReceiveOut, operation_id="receiveWebhook")
 async def receive_webhook(
     request: Request,
-    x_oura_signature: str = Header(None, alias="x-oura-signature")
+    background_tasks: BackgroundTasks,
+    x_oura_signature: str = Header(None, alias="x-oura-signature"),
 ) -> WebhookReceiveOut:
     """
     Receive webhook events from Oura.
 
-    Verifies signature and stores events in SQLite.
+    Verifies signature, stores in SQLite, and fires Zerobus ingest as a background task.
     """
     body = await request.body()
 
@@ -52,6 +53,10 @@ async def receive_webhook(
 
     store = get_event_store()
     stored = await store.add(event)
+
+    sink = getattr(request.app.state, "zerobus", None)
+    if sink is not None:
+        background_tasks.add_task(sink.ingest, stored)
 
     return WebhookReceiveOut(
         status="received",

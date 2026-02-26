@@ -123,3 +123,59 @@ class TestEventsEndpoint:
         response = await client.delete("/api/events")
         assert response.status_code == 200
         assert response.json()["status"] == "cleared"
+
+
+@pytest.fixture
+def mock_zerobus():
+    """Patch app.state.zerobus with a MagicMock that has an AsyncMock ingest method."""
+    from unittest.mock import AsyncMock, MagicMock
+    from oura_streaming.main import app
+
+    sink = MagicMock(ingest=AsyncMock(return_value=True))
+    app.state.zerobus = sink
+    yield sink
+    # Cleanup: remove the attribute so other tests are unaffected
+    try:
+        del app.state.zerobus
+    except AttributeError:
+        pass
+
+
+@pytest.mark.asyncio
+class TestZerobusIntegration:
+    async def test_webhook_triggers_zerobus_ingest(self, client, mock_zerobus):
+        """POST a valid webhook and confirm zerobus.ingest was called once with a StoredEvent."""
+        from oura_streaming.models.webhook import StoredEvent
+
+        event = {
+            "data_type": "daily_sleep",
+            "event_type": "create",
+            "data": {"score": 85},
+        }
+        response = await client.post("/api/webhooks", json=event)
+        assert response.status_code == 200
+
+        mock_zerobus.ingest.assert_called_once()
+        call_args = mock_zerobus.ingest.call_args
+        stored_arg = call_args[0][0]
+        assert isinstance(stored_arg, StoredEvent)
+
+    async def test_webhook_succeeds_when_zerobus_disabled(self, client):
+        """When app.state.zerobus is None, POST should still return 200 without error."""
+        from oura_streaming.main import app
+
+        app.state.zerobus = None
+        try:
+            event = {
+                "data_type": "workout",
+                "event_type": "update",
+            }
+            response = await client.post("/api/webhooks", json=event)
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "received"
+        finally:
+            try:
+                del app.state.zerobus
+            except AttributeError:
+                pass

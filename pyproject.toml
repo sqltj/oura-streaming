@@ -12,8 +12,9 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "sqlalchemy>=2.0.46",
     "aiosqlite>=0.22.1",
-
     "greenlet>=3.3.1",
+    "databricks-zerobus-ingest-sdk>=0.2.0",
+    "grpcio-tools",
 ]
 
 [dependency-groups]

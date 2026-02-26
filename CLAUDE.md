@@ -76,6 +76,10 @@ FastAPI application receiving Oura Ring API v2 webhooks with OAuth2 authenticati
 - **Batch code changes before re-auth**: Every file edit triggers FastAPI dev server reload, which clears in-memory OAuth tokens. Make all code changes at once, then re-authenticate once.
 - **ngrok free tier**: URL changes on restart. Update both the Oura portal redirect URI and `.env` when ngrok restarts.
 - **Debug Oura API responses**: When Oura returns errors, log the full response (status code + body) rather than raising immediately. Oura error messages are helpful but brief.
+- **Zerobus uses SP OAuth, not PAT tokens**: `DATABRICKS_CLIENT_ID`/`DATABRICKS_CLIENT_SECRET` are service principal credentials (OAuth M2M). Different from `DATABRICKS_TOKEN` (PAT for DBSQL). Both can coexist in `.env`.
+- **TIMESTAMP → int64 microseconds in Protobuf**: Convert with `int(dt.timestamp() * 1_000_000)` — Zerobus rejects string timestamps and second-resolution integers.
+- **Zerobus SDK 0.3.0 module path changed**: Use `from zerobus.sdk.aio.zerobus_sdk import ZerobusSdk` (not `zerobus.sdk.asyncio` as in older docs). Two-stage await: `future = await stream.ingest_record(rec)` then `await future`.
+
 - **APX must be installed as a uv tool**: `uv tool install /path/to/apx.whl` installs APX globally (`~/.local/bin/apx`). Do NOT use `uv pip install` — it goes into the project venv and gets removed on next `uv sync`.
 - **APX required files**: `metadata-path = "src/oura_streaming/_metadata.py"` must be in `[tool.apx.metadata]` in pyproject.toml, and `src/oura_streaming/_metadata.py` must exist with `app_name`, `app_slug`, `app_entrypoint`, `api_prefix`, `dist_dir` variables.
 

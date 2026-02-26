@@ -46,6 +46,24 @@ class Settings(BaseSettings):
     # Use hive_metastore.default by default to work without UC
     delta_table: str = "hive_metastore.default.oura_events"
 
+    # Zerobus Ingest (streaming write sink — optional, uses SP OAuth M2M)
+    # Note: distinct from databricks_token (PAT for DBSQL reads)
+    databricks_workspace_url: str = ""       # e.g. https://dbc-xxx.cloud.databricks.com
+    databricks_client_id: str = ""           # Service principal client ID
+    databricks_client_secret: str = ""       # Service principal secret
+    zerobus_server_endpoint: str = ""        # e.g. 12345.zerobus.us-east-1.cloud.databricks.com
+    zerobus_table_name: str = ""             # e.g. main.default.oura_events
+
+    @property
+    def zerobus_enabled(self) -> bool:
+        return all([
+            self.databricks_workspace_url,
+            self.databricks_client_id,
+            self.databricks_client_secret,
+            self.zerobus_server_endpoint,
+            self.zerobus_table_name,
+        ])
+
     # Polling (for Databricks Apps without public ingress)
     polling_enabled: bool = False
     polling_interval_seconds: int = 300

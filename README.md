@@ -125,20 +125,31 @@ To find your **region**: visible in the workspace URL (e.g. `eastus`, `us-west-2
 Supported AWS regions: `us-east-1`, `us-east-2`, `us-west-2`, `eu-central-1`, `eu-west-1`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`
 Supported Azure regions: `eastus`, `eastus2`, `westus`, `westeurope`, `northeurope`, `canadacentral`, `australiaeast`, `southeastasia`, `swedencentral`
 
-### Step 3 — Create the Delta table
+### Step 3 — Deploy the Delta table via Asset Bundle
 
-Run in the Databricks SQL Editor (requires Unity Catalog — use `main.default` or your preferred catalog/schema):
+The `bundle/` directory contains a Databricks Asset Bundle that creates the `oura.streaming.oura_events` table. This is the recommended approach (infrastructure-as-code).
 
-```sql
-CREATE TABLE IF NOT EXISTS main.default.oura_events (
-    id          STRING NOT NULL,
-    received_at TIMESTAMP NOT NULL,
-    data_type   STRING NOT NULL,
-    event_type  STRING NOT NULL,
-    user_id     STRING,
-    payload     STRING
-) USING DELTA;
+```bash
+cd bundle
+
+# Deploy schema + table setup job to dev (oura_dev catalog)
+databricks bundle deploy
+
+# Run the table setup job once to CREATE TABLE
+databricks bundle run oura_events_table_setup
+
+# Or deploy to prod (oura catalog)
+databricks bundle deploy -t prod
+databricks bundle run oura_events_table_setup -t prod
 ```
+
+**Targets:**
+| Target | Catalog | Schema |
+|--------|---------|--------|
+| `dev` (default) | `oura_dev` | `streaming` |
+| `prod` | `oura` | `streaming` |
+
+> **Note:** `databricks bundle deploy` creates the catalog automatically. Set `warehouse_id` in `bundle/databricks.yml` to your SQL Warehouse ID.
 
 ### Step 4 — Create a service principal
 
@@ -149,9 +160,9 @@ CREATE TABLE IF NOT EXISTS main.default.oura_events (
 Grant the SP access to your table:
 
 ```sql
-GRANT USE CATALOG ON CATALOG main TO `<client-id>`;
-GRANT USE SCHEMA ON SCHEMA main.default TO `<client-id>`;
-GRANT MODIFY, SELECT ON TABLE main.default.oura_events TO `<client-id>`;
+GRANT USE CATALOG ON CATALOG oura TO `<client-id>`;
+GRANT USE SCHEMA ON SCHEMA oura.streaming TO `<client-id>`;
+GRANT MODIFY, SELECT ON TABLE oura.streaming.oura_events TO `<client-id>`;
 ```
 
 ### Step 5 — Configure environment
@@ -163,7 +174,7 @@ DATABRICKS_WORKSPACE_URL=https://dbc-XXXXXXXX.cloud.databricks.com
 DATABRICKS_CLIENT_ID=<service-principal-client-id>
 DATABRICKS_CLIENT_SECRET=<service-principal-client-secret>
 ZEROBUS_SERVER_ENDPOINT=<workspace-id>.zerobus.<region>.cloud.databricks.com
-ZEROBUS_TABLE_NAME=main.default.oura_events
+ZEROBUS_TABLE_NAME=oura.streaming.oura_events
 ```
 
 ### Step 6 — Generate Protobuf schema
@@ -196,10 +207,10 @@ git commit -m "feat: add Zerobus Protobuf schema for oura_events"
 Restart the dev server and send a test webhook. Then check the Delta table:
 
 ```sql
-SELECT * FROM main.default.oura_events ORDER BY received_at DESC LIMIT 5;
+SELECT * FROM oura.streaming.oura_events ORDER BY received_at DESC LIMIT 5;
 ```
 
-The server log will show `Zerobus stream opened → main.default.oura_events` on startup when credentials are valid.
+The server log will show `Zerobus stream opened → oura.streaming.oura_events` on startup when credentials are valid.
 
 ---
 
@@ -209,10 +220,9 @@ You can run this app as a Databricks App and persist events to a Delta table (no
 
 1) Create a SQL Warehouse and Delta table
 
-Run in SQL Editor (use hive_metastore for non-UC):
+Deploy via Asset Bundle (recommended — see [Zerobus Ingest Setup](#zerobus-ingest-setup-optional) Step 3), or run manually in SQL Editor:
 ```sql
-CREATE SCHEMA IF NOT EXISTS hive_metastore.default;
-CREATE TABLE IF NOT EXISTS hive_metastore.default.oura_events (
+CREATE TABLE IF NOT EXISTS oura.streaming.oura_events (
   id STRING,
   received_at TIMESTAMP,
   data_type STRING,
@@ -229,7 +239,7 @@ Set the following env vars in your Databricks App:
 - DATABRICKS_HOST=adb-XXXX.azuredatabricks.net
 - DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/XXXXXXXXXXXX
 - DATABRICKS_TOKEN=<PAT with SQL access>
-- DELTA_TABLE=hive_metastore.default.oura_events
+- DELTA_TABLE=oura.streaming.oura_events
 - POLLING_ENABLED=true
 - POLLING_INTERVAL_SECONDS=300
 - OURA_CLIENT_ID, OURA_CLIENT_SECRET

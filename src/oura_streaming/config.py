@@ -42,9 +42,8 @@ class Settings(BaseSettings):
     databricks_http_path: str = ""
     # Personal Access Token or OAuth token with SQL access
     databricks_token: str = ""
-    # Fully-qualified Delta table name to store events
-    # Use hive_metastore.default by default to work without UC
-    delta_table: str = "hive_metastore.default.oura_events"
+    # Fully-qualified Delta table name to store events (DBSQL backend)
+    delta_table: str = "oura.streaming.oura_events"
 
     # Zerobus Ingest (streaming write sink — optional, uses SP OAuth M2M)
     # Note: distinct from databricks_token (PAT for DBSQL reads)
@@ -52,7 +51,7 @@ class Settings(BaseSettings):
     databricks_client_id: str = ""           # Service principal client ID
     databricks_client_secret: str = ""       # Service principal secret
     zerobus_server_endpoint: str = ""        # e.g. 12345.zerobus.us-east-1.cloud.databricks.com
-    zerobus_table_name: str = ""             # e.g. main.default.oura_events
+    zerobus_table_name: str = "oura.streaming.oura_events"
 
     @property
     def zerobus_enabled(self) -> bool:

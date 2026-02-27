@@ -1,0 +1,5 @@
+resources:
+  catalogs:
+    oura_catalog:
+      name: ${var.catalog}
+      comment: "Oura Ring API v2 webhook events — managed by Databricks Asset Bundle"

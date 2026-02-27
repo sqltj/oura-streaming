@@ -149,7 +149,7 @@ databricks bundle run oura_events_table_setup -t prod
 | `dev` (default) | `oura_dev` | `streaming` |
 | `prod` | `oura` | `streaming` |
 
-> **Note:** The `oura` and `oura_dev` catalogs must exist before deploying. Create them in your workspace or ask your admin. Set `warehouse_id` in `bundle/databricks.yml` to your SQL Warehouse ID.
+> **Note:** `databricks bundle deploy` creates the catalog automatically. Set `warehouse_id` in `bundle/databricks.yml` to your SQL Warehouse ID.
 
 ### Step 4 — Create a service principal
 

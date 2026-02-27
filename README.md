@@ -99,12 +99,109 @@ Open your browser to:
 ## Running Tests
 
 ```bash
-# Sync dev dependencies
-uv sync --extra dev
-
-# Run tests with in-memory DB
-DATABASE_URL=sqlite+aiosqlite:///:memory: uv run pytest
+uv run pytest
 ```
+
+## Zerobus Ingest Setup (Optional)
+
+Stream every incoming webhook event to a Databricks Delta table in real time via gRPC. The sink runs as a background task — webhooks always return 200 regardless of Zerobus status.
+
+### Step 1 — Confirm availability
+
+Log into your Databricks workspace and go to **Settings → Identity and Access → Service principals**. If this menu is missing, your tier does not support service principals and Zerobus will not work.
+
+### Step 2 — Find your Zerobus server endpoint
+
+Your endpoint is derived from your workspace URL:
+
+| Cloud | Endpoint format |
+|-------|----------------|
+| AWS   | `<workspace-id>.zerobus.<region>.cloud.databricks.com` |
+| Azure | `<workspace-id>.zerobus.<region>.azuredatabricks.net` |
+
+To find your **workspace ID**: Settings → Overview → Workspace ID (numeric).
+To find your **region**: visible in the workspace URL (e.g. `eastus`, `us-west-2`).
+
+Supported AWS regions: `us-east-1`, `us-east-2`, `us-west-2`, `eu-central-1`, `eu-west-1`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`
+Supported Azure regions: `eastus`, `eastus2`, `westus`, `westeurope`, `northeurope`, `canadacentral`, `australiaeast`, `southeastasia`, `swedencentral`
+
+### Step 3 — Create the Delta table
+
+Run in the Databricks SQL Editor (requires Unity Catalog — use `main.default` or your preferred catalog/schema):
+
+```sql
+CREATE TABLE IF NOT EXISTS main.default.oura_events (
+    id          STRING NOT NULL,
+    received_at TIMESTAMP NOT NULL,
+    data_type   STRING NOT NULL,
+    event_type  STRING NOT NULL,
+    user_id     STRING,
+    payload     STRING
+) USING DELTA;
+```
+
+### Step 4 — Create a service principal
+
+1. Settings → Identity and Access → Service principals → **Add service principal**
+2. Name it `oura-zerobus-producer`
+3. Click **Generate secret** → save the **client ID** and **client secret**
+
+Grant the SP access to your table:
+
+```sql
+GRANT USE CATALOG ON CATALOG main TO `<client-id>`;
+GRANT USE SCHEMA ON SCHEMA main.default TO `<client-id>`;
+GRANT MODIFY, SELECT ON TABLE main.default.oura_events TO `<client-id>`;
+```
+
+### Step 5 — Configure environment
+
+Add to your `.env`:
+
+```env
+DATABRICKS_WORKSPACE_URL=https://dbc-XXXXXXXX.cloud.databricks.com
+DATABRICKS_CLIENT_ID=<service-principal-client-id>
+DATABRICKS_CLIENT_SECRET=<service-principal-client-secret>
+ZEROBUS_SERVER_ENDPOINT=<workspace-id>.zerobus.<region>.cloud.databricks.com
+ZEROBUS_TABLE_NAME=main.default.oura_events
+```
+
+### Step 6 — Generate Protobuf schema
+
+```bash
+# Generate .proto from your Delta table schema
+uv run python -m zerobus.tools.generate_proto \
+    --uc-endpoint "$DATABRICKS_WORKSPACE_URL" \
+    --client-id "$DATABRICKS_CLIENT_ID" \
+    --client-secret "$DATABRICKS_CLIENT_SECRET" \
+    --table "$ZEROBUS_TABLE_NAME" \
+    --output src/oura_streaming/oura_events.proto
+
+# Compile to Python bindings
+uv run python -m grpc_tools.protoc \
+    -I src/oura_streaming \
+    --python_out=src/oura_streaming \
+    src/oura_streaming/oura_events.proto
+```
+
+Commit the generated files:
+
+```bash
+git add src/oura_streaming/oura_events.proto src/oura_streaming/oura_events_pb2.py
+git commit -m "feat: add Zerobus Protobuf schema for oura_events"
+```
+
+### Step 7 — Verify
+
+Restart the dev server and send a test webhook. Then check the Delta table:
+
+```sql
+SELECT * FROM main.default.oura_events ORDER BY received_at DESC LIMIT 5;
+```
+
+The server log will show `Zerobus stream opened → main.default.oura_events` on startup when credentials are valid.
+
+---
 
 ## Databricks (Free/Trial) Setup
 

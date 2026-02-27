@@ -1,0 +1,30 @@
+bundle:
+  name: oura-streaming
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: "Unity Catalog catalog name for oura_events table"
+    default: "oura"
+  schema:
+    description: "Schema within the catalog"
+    default: "streaming"
+  warehouse_id:
+    description: "SQL warehouse ID for table setup job"
+    default: ""
+
+targets:
+  dev:
+    default: true
+    mode: development
+    variables:
+      catalog: "oura_dev"
+      schema: "streaming"
+
+  prod:
+    mode: production
+    variables:
+      catalog: "oura"
+      schema: "streaming"

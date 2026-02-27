@@ -1,0 +1,6 @@
+resources:
+  schemas:
+    oura_streaming_schema:
+      catalog_name: ${var.catalog}
+      name: ${var.schema}
+      comment: "Oura Ring API v2 webhook events"

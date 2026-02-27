@@ -1,0 +1,22 @@
+resources:
+  jobs:
+    oura_events_table_setup:
+      name: "[${bundle.target}] oura_events table setup"
+      tasks:
+        - task_key: create_table
+          sql_task:
+            warehouse_id: ${var.warehouse_id}
+            query:
+              query: |
+                CREATE TABLE IF NOT EXISTS ${var.catalog}.${var.schema}.oura_events (
+                    id          STRING NOT NULL,
+                    received_at TIMESTAMP NOT NULL,
+                    data_type   STRING NOT NULL,
+                    event_type  STRING NOT NULL,
+                    user_id     STRING,
+                    payload     STRING
+                ) USING DELTA
+                COMMENT 'Oura Ring API v2 webhook events — all 14 data types stored as JSON payload';
+      permissions:
+        - level: CAN_MANAGE_RUN
+          group_name: "users"
